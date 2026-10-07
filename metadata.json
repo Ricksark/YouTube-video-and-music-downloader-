@@ -1,0 +1,6 @@
+{
+  "name": "TubeForge",
+  "description": "YouTube video and music downloader with batch queue, high-speed format conversion, and real-time download progress tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

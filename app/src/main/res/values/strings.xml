@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">TubeForge</string>
+    <string name="tab_download">Downloader</string>
+    <string name="tab_queue">Active Queue</string>
+    <string name="tab_library">Library</string>
+    <string name="tab_converter">Converter</string>
+    <string name="tab_settings">Settings</string>
+</resources>
