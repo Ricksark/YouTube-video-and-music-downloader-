@@ -14,16 +14,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DownloadDone
-import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -58,10 +58,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.database.DownloadEntity
 import com.example.ui.components.formatBytes
-import com.example.ui.components.formatTime
-import com.example.ui.theme.CoralSecondary
-import com.example.ui.theme.CrimsonPrimary
-import com.example.ui.theme.CyanTertiary
 import com.example.ui.viewmodel.TubeForgeViewModel
 
 @Composable
@@ -74,147 +70,161 @@ fun LibraryScreen(
     val filter by viewModel.libraryFilter.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopCenter
     ) {
-        // Search bar
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { viewModel.setSearchQuery(it) },
-            placeholder = { Text("Search downloaded tracks & videos...") },
-            leadingIcon = {
-                Icon(imageVector = Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(
-                        onClick = { viewModel.setSearchQuery("") },
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .widthIn(max = 720.dp)
+                .padding(horizontal = 16.dp)
+        ) {
+            // Search bar
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.setSearchQuery(it) },
+                placeholder = { Text("Search downloaded tracks & videos...") },
+                leadingIcon = {
+                    Icon(imageVector = Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(
+                            onClick = { viewModel.setSearchQuery("") },
+                            modifier = Modifier.minimumInteractiveComponentSize()
+                        ) {
+                            Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear")
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp)
+                    .testTag("search_field"),
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                ),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Filter Pills & Clear Action
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = filter == "ALL",
+                        onClick = { viewModel.setLibraryFilter("ALL") },
+                        label = { Text("All (${completedTasks.size})") },
+                        modifier = Modifier.minimumInteractiveComponentSize().testTag("filter_all")
+                    )
+                    FilterChip(
+                        selected = filter == "VIDEO",
+                        onClick = { viewModel.setLibraryFilter("VIDEO") },
+                        label = { Text("Videos") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        modifier = Modifier.minimumInteractiveComponentSize().testTag("filter_video")
+                    )
+                    FilterChip(
+                        selected = filter == "AUDIO",
+                        onClick = { viewModel.setLibraryFilter("AUDIO") },
+                        label = { Text("Music") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onSecondary
+                        ),
+                        modifier = Modifier.minimumInteractiveComponentSize().testTag("filter_audio")
+                    )
+                }
+
+                if (completedTasks.isNotEmpty()) {
+                    TextButton(
+                        onClick = { viewModel.clearCompletedDownloads() },
                         modifier = Modifier.minimumInteractiveComponentSize()
                     ) {
-                        Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear")
+                        Text("Clear All", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.error))
                     }
                 }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 10.dp)
-                .testTag("search_field"),
-            shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = CrimsonPrimary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-            ),
-            singleLine = true
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Filter Pills & Clear Action
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = filter == "ALL",
-                    onClick = { viewModel.setLibraryFilter("ALL") },
-                    label = { Text("All (${completedTasks.size})") },
-                    modifier = Modifier.minimumInteractiveComponentSize().testTag("filter_all")
-                )
-                FilterChip(
-                    selected = filter == "VIDEO",
-                    onClick = { viewModel.setLibraryFilter("VIDEO") },
-                    label = { Text("Videos") },
-                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = CrimsonPrimary, selectedLabelColor = Color.White),
-                    modifier = Modifier.minimumInteractiveComponentSize().testTag("filter_video")
-                )
-                FilterChip(
-                    selected = filter == "AUDIO",
-                    onClick = { viewModel.setLibraryFilter("AUDIO") },
-                    label = { Text("Music") },
-                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = CoralSecondary, selectedLabelColor = Color.White),
-                    modifier = Modifier.minimumInteractiveComponentSize().testTag("filter_audio")
-                )
             }
 
-            if (completedTasks.isNotEmpty()) {
-                TextButton(
-                    onClick = { viewModel.clearCompletedDownloads() },
-                    modifier = Modifier.minimumInteractiveComponentSize()
-                ) {
-                    Text("Clear All", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.error))
-                }
-            }
-        }
+            Spacer(modifier = Modifier.height(10.dp))
 
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Library Items List
-        if (completedTasks.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 60.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(24.dp)
+            // Completed List
+            if (completedTasks.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 60.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(68.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-                        contentAlignment = Alignment.Center
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(24.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.DownloadDone,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(34.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(68.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DownloadDone,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(34.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = "No Downloaded Files Yet",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Completed videos and high quality audio files will appear here ready to play, convert, or export to public Downloads.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text(
-                        text = "No Downloaded Files Yet",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Completed videos and high quality audio files will appear here ready to play and convert.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
                 }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(completedTasks, key = { it.id }) { item ->
-                    LibraryItemCard(
-                        item = item,
-                        onPlay = { viewModel.openPreview(item) },
-                        onConvert = { viewModel.prepareConversion(item) },
-                        onShare = {
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = if (item.mediaType == "VIDEO") "video/*" else "audio/*"
-                                putExtra(Intent.EXTRA_SUBJECT, item.title)
-                                putExtra(Intent.EXTRA_TEXT, "Downloaded via TubeForge: ${item.title} (${item.targetFormat})")
-                            }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Media File"))
-                        },
-                        onDelete = { viewModel.downloadManager.deleteTask(item.id) }
-                    )
-                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(completedTasks, key = { it.id }) { item ->
+                        LibraryItemCard(
+                            item = item,
+                            onPlay = { viewModel.openPreview(item) },
+                            onConvert = { viewModel.prepareConversion(item) },
+                            onExport = { viewModel.exportItemToPublicDownloads(item) },
+                            onShare = {
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = if (item.mediaType == "VIDEO") "video/*" else "audio/*"
+                                    putExtra(Intent.EXTRA_SUBJECT, item.title)
+                                    putExtra(Intent.EXTRA_TEXT, "Downloaded via TubeForge: ${item.title} (${item.targetFormat})")
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "Share Media File"))
+                            },
+                            onDelete = { viewModel.downloadManager.deleteTask(item.id) }
+                        )
+                    }
 
-                item {
-                    Spacer(modifier = Modifier.height(24.dp))
+                    item {
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
                 }
             }
         }
@@ -226,6 +236,7 @@ fun LibraryItemCard(
     item: DownloadEntity,
     onPlay: () -> Unit,
     onConvert: () -> Unit,
+    onExport: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -235,6 +246,7 @@ fun LibraryItemCard(
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = modifier
             .fillMaxWidth()
             .clickable { onPlay() }
@@ -270,13 +282,13 @@ fun LibraryItemCard(
                 Box(
                     modifier = Modifier
                         .size(28.dp)
-                        .background(CrimsonPrimary, CircleShape),
+                        .background(MaterialTheme.colorScheme.primary, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = "Play",
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -290,7 +302,8 @@ fun LibraryItemCard(
                     text = item.title,
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -305,13 +318,13 @@ fun LibraryItemCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = if (isVideo) CrimsonPrimary.copy(alpha = 0.15f) else CoralSecondary.copy(alpha = 0.15f)
+                        color = if (isVideo) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
                     ) {
                         Text(
                             text = "${item.targetFormat} • ${item.quality}",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = if (isVideo) CrimsonPrimary else CoralSecondary,
+                                color = if (isVideo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                                 fontSize = 9.sp
                             ),
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -329,6 +342,21 @@ fun LibraryItemCard(
             // Action Buttons
             Row {
                 IconButton(
+                    onClick = onExport,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .minimumInteractiveComponentSize()
+                        .testTag("lib_export_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FileDownload,
+                        contentDescription = "Save to Downloads",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                IconButton(
                     onClick = onConvert,
                     modifier = Modifier
                         .size(36.dp)
@@ -338,7 +366,7 @@ fun LibraryItemCard(
                     Icon(
                         imageVector = Icons.Default.Transform,
                         contentDescription = "Convert",
-                        tint = CyanTertiary,
+                        tint = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.size(18.dp)
                     )
                 }

@@ -8,22 +8,27 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
+enum class ThemeMode {
+    SYSTEM,
+    LIGHT,
+    DARK
+}
+
 private val DarkColorScheme = darkColorScheme(
-    primary = CrimsonPrimary,
-    onPrimary = CrimsonOnPrimary,
-    primaryContainer = CrimsonPrimaryContainer,
-    onPrimaryContainer = CrimsonOnPrimaryContainer,
-    secondary = CoralSecondary,
-    onSecondary = CoralOnSecondary,
-    secondaryContainer = CoralSecondaryContainer,
-    onSecondaryContainer = CoralOnSecondaryContainer,
-    tertiary = CyanTertiary,
-    onTertiary = CyanOnTertiary,
-    tertiaryContainer = CyanTertiaryContainer,
-    onTertiaryContainer = CyanOnTertiaryContainer,
+    primary = DarkCrimsonPrimary,
+    onPrimary = DarkCrimsonOnPrimary,
+    primaryContainer = DarkCrimsonPrimaryContainer,
+    onPrimaryContainer = DarkCrimsonOnPrimaryContainer,
+    secondary = DarkCoralSecondary,
+    onSecondary = DarkCoralOnSecondary,
+    secondaryContainer = DarkCoralSecondaryContainer,
+    onSecondaryContainer = DarkCoralOnSecondaryContainer,
+    tertiary = DarkCyanTertiary,
+    onTertiary = DarkCyanOnTertiary,
+    tertiaryContainer = DarkCyanTertiaryContainer,
+    onTertiaryContainer = DarkCyanOnTertiaryContainer,
     background = DarkBackground,
     onBackground = DarkOnBackground,
     surface = DarkSurface,
@@ -31,21 +36,22 @@ private val DarkColorScheme = darkColorScheme(
     surfaceVariant = DarkSurfaceVariant,
     onSurfaceVariant = DarkOnSurfaceVariant,
     outline = DarkOutline,
+    outlineVariant = DarkOutlineVariant
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = CrimsonPrimary,
-    onPrimary = CrimsonOnPrimary,
-    primaryContainer = Color(0xFFFFDAD8),
-    onPrimaryContainer = Color(0xFF410005),
-    secondary = CoralSecondary,
-    onSecondary = CoralOnSecondary,
-    secondaryContainer = Color(0xFFFFDBCD),
-    onSecondaryContainer = Color(0xFF38140A),
-    tertiary = CyanTertiary,
-    onTertiary = CyanOnTertiary,
-    tertiaryContainer = Color(0xFF70F7E7),
-    onTertiaryContainer = Color(0xFF00201D),
+    primary = LightCrimsonPrimary,
+    onPrimary = LightCrimsonOnPrimary,
+    primaryContainer = LightCrimsonPrimaryContainer,
+    onPrimaryContainer = LightCrimsonOnPrimaryContainer,
+    secondary = LightCoralSecondary,
+    onSecondary = LightCoralOnSecondary,
+    secondaryContainer = LightCoralSecondaryContainer,
+    onSecondaryContainer = LightCoralOnSecondaryContainer,
+    tertiary = LightCyanTertiary,
+    onTertiary = LightCyanOnTertiary,
+    tertiaryContainer = LightCyanTertiaryContainer,
+    onTertiaryContainer = LightCyanOnTertiaryContainer,
     background = LightBackground,
     onBackground = LightOnBackground,
     surface = LightSurface,
@@ -53,20 +59,28 @@ private val LightColorScheme = lightColorScheme(
     surfaceVariant = LightSurfaceVariant,
     onSurfaceVariant = LightOnSurfaceVariant,
     outline = LightOutline,
+    outlineVariant = LightOutlineVariant
 )
 
 @Composable
 fun MyApplicationTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Set false to prioritize TubeForge branded identity
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
+    val isSystemDark = isSystemInDarkTheme()
+    val isDark = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemDark
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColorScheme
+        isDark -> DarkColorScheme
         else -> LightColorScheme
     }
 

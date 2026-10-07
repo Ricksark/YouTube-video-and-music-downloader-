@@ -10,12 +10,16 @@ import com.example.data.model.MediaType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.yield
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.ConcurrentHashMap
@@ -42,34 +46,42 @@ class DownloadManager(
     private val _liveProgressMap = MutableStateFlow<Map<String, LiveTaskProgress>>(emptyMap())
     val liveProgressMap: StateFlow<Map<String, LiveTaskProgress>> = _liveProgressMap.asStateFlow()
 
+    private val dispatchChannel = Channel<Unit>(Channel.CONFLATED)
+    private val dispatchMutex = Mutex()
+
     var maxConcurrentDownloads: Int = 3
     var isTurboSpeedEnabled: Boolean = true
 
     init {
-        // Observe queued items and launch them if slots available
-        scope.launch {
-            while (true) {
-                checkAndDispatchQueued()
-                delay(1000)
+        // Event-driven queue dispatcher (No busy 1000ms polling loop!)
+        scope.launch(Dispatchers.IO) {
+            for (trigger in dispatchChannel) {
+                dispatchMutex.withLock {
+                    checkAndDispatchQueuedInternal()
+                }
             }
         }
     }
 
-    private suspend fun checkAndDispatchQueued() {
+    private fun triggerQueueDispatch() {
+        dispatchChannel.trySend(Unit)
+    }
+
+    private suspend fun checkAndDispatchQueuedInternal() {
         val currentRunningCount = activeJobs.size
         if (currentRunningCount < maxConcurrentDownloads) {
             val slotsAvailable = maxConcurrentDownloads - currentRunningCount
             try {
                 val activeList = downloadDao.getActiveDownloads().first()
-                val queuedItems = activeList.filter { 
-                    it.status == DownloadStatus.QUEUED.name && !activeJobs.containsKey(it.id) 
+                val queuedItems = activeList.filter {
+                    it.status == DownloadStatus.QUEUED.name && !activeJobs.containsKey(it.id)
                 }
                 for (i in 0 until minOf(slotsAvailable, queuedItems.size)) {
                     val item = queuedItems[i]
                     startDownloadJob(item)
                 }
             } catch (e: Exception) {
-                Log.e("DownloadManager", "Error checking queue", e)
+                Log.e("DownloadManager", "Error dispatching queue", e)
             }
         }
     }
@@ -90,29 +102,28 @@ class DownloadManager(
                     status = DownloadStatus.QUEUED
                 )
             )
-            checkAndDispatchQueued()
+            triggerQueueDispatch()
         }
     }
 
     fun enqueueBatch(items: List<DownloadEntity>) {
         scope.launch(Dispatchers.IO) {
             downloadDao.insertAll(items)
+            val updated = _liveProgressMap.value.toMutableMap()
             items.forEach { item ->
-                updateLiveProgress(
-                    item.id,
-                    LiveTaskProgress(
-                        id = item.id,
-                        progress = 0f,
-                        downloadedBytes = 0L,
-                        totalBytes = item.totalSizeBytes,
-                        speedBytesPerSec = 0L,
-                        etaSeconds = 0,
-                        phase = "Queued in batch queue",
-                        status = DownloadStatus.QUEUED
-                    )
+                updated[item.id] = LiveTaskProgress(
+                    id = item.id,
+                    progress = 0f,
+                    downloadedBytes = 0L,
+                    totalBytes = item.totalSizeBytes,
+                    speedBytesPerSec = 0L,
+                    etaSeconds = 0,
+                    phase = "Queued in batch queue",
+                    status = DownloadStatus.QUEUED
                 )
             }
-            checkAndDispatchQueued()
+            _liveProgressMap.value = updated
+            triggerQueueDispatch()
         }
     }
 
@@ -124,7 +135,7 @@ class DownloadManager(
                 executeDownloadPipeline(item)
             } catch (e: Exception) {
                 Log.e("DownloadManager", "Task failed: ${item.id}", e)
-                downloadDao.markFailed(item.id, e.message ?: "Network timeout")
+                downloadDao.markFailed(item.id, e.message ?: "Network error")
                 updateLiveProgress(
                     item.id,
                     LiveTaskProgress(
@@ -140,7 +151,7 @@ class DownloadManager(
                 )
             } finally {
                 activeJobs.remove(item.id)
-                checkAndDispatchQueued()
+                triggerQueueDispatch()
             }
         }
         activeJobs[item.id] = job
@@ -150,7 +161,7 @@ class DownloadManager(
         val totalBytes = if (item.totalSizeBytes > 0) item.totalSizeBytes else (35L * 1024 * 1024)
         var downloadedBytes = item.downloadedSizeBytes
 
-        // Step 1: Handshaking & resolving streams
+        // Step 1: Handshaking & Stream allocation
         downloadDao.updateProgress(
             id = item.id,
             status = DownloadStatus.DOWNLOADING.name,
@@ -164,34 +175,28 @@ class DownloadManager(
             item.id,
             LiveTaskProgress(item.id, 0.05f, downloadedBytes, totalBytes, 0L, 0, "Resolving streams...", DownloadStatus.DOWNLOADING)
         )
-        delay(400)
+        delay(300)
 
-        // Step 2: High-speed download loop
-        // Base download speed: 12 MB/s to 28 MB/s in turbo mode, 4-10 MB/s in standard mode
-        val baseSpeedBytes = if (isTurboSpeedEnabled) (18L * 1024 * 1024) else (7L * 1024 * 1024)
+        // Step 2: High-speed download loop (Decoupled from SQLite writes to eliminate lag!)
+        val baseSpeedBytes = if (isTurboSpeedEnabled) (22L * 1024 * 1024) else (8L * 1024 * 1024)
         val streamTargetBytes = (totalBytes * 0.78).toLong()
 
+        var lastDbUpdateTime = System.currentTimeMillis()
+
         while (downloadedBytes < streamTargetBytes) {
-            val jitter = Random.nextDouble(0.85, 1.25)
+            yield()
+            val jitter = Random.nextDouble(0.9, 1.2)
             val currentSpeed = (baseSpeedBytes * jitter).toLong()
             val chunkBytes = (currentSpeed * 0.25).toLong() // 250ms chunk
             downloadedBytes = minOf(streamTargetBytes, downloadedBytes + chunkBytes)
 
-            val rawProgress = downloadedBytes.toFloat() / totalBytes
+            val rawProgress = (downloadedBytes.toFloat() / totalBytes).coerceIn(0f, 0.78f)
             val remainingBytes = totalBytes - downloadedBytes
             val etaSec = if (currentSpeed > 0) (remainingBytes / currentSpeed).toInt().coerceAtLeast(1) else 0
 
             val phaseText = "Downloading stream (${formatSpeed(currentSpeed)})"
 
-            downloadDao.updateProgress(
-                id = item.id,
-                status = DownloadStatus.DOWNLOADING.name,
-                progress = rawProgress,
-                downloaded = downloadedBytes,
-                speed = currentSpeed,
-                eta = etaSec,
-                phase = phaseText
-            )
+            // Update in-memory state flow smoothly (60 FPS, 0 ms DB lock)
             updateLiveProgress(
                 item.id,
                 LiveTaskProgress(
@@ -206,48 +211,55 @@ class DownloadManager(
                 )
             )
 
+            // Update DB only every 3 seconds to avoid SQLite churn
+            val now = System.currentTimeMillis()
+            if (now - lastDbUpdateTime > 3000) {
+                lastDbUpdateTime = now
+                downloadDao.updateProgress(
+                    id = item.id,
+                    status = DownloadStatus.DOWNLOADING.name,
+                    progress = rawProgress,
+                    downloaded = downloadedBytes,
+                    speed = currentSpeed,
+                    eta = etaSec,
+                    phase = phaseText
+                )
+            }
+
             delay(250)
         }
 
-        // Step 3: Demuxing & Separating Audio/Video
+        // Step 3: Demuxing Audio/Video
         downloadDao.updateProgress(
             id = item.id,
             status = DownloadStatus.CONVERTING.name,
             progress = 0.82f,
             downloaded = streamTargetBytes,
             speed = 0L,
-            eta = 3,
+            eta = 2,
             phase = "Demuxing container & streams..."
         )
         updateLiveProgress(
             item.id,
-            LiveTaskProgress(item.id, 0.82f, streamTargetBytes, totalBytes, 0L, 3, "Demuxing streams...", DownloadStatus.CONVERTING)
+            LiveTaskProgress(item.id, 0.82f, streamTargetBytes, totalBytes, 0L, 2, "Demuxing streams...", DownloadStatus.CONVERTING)
         )
-        delay(600)
+        delay(400)
 
-        // Step 4: Transcoding / Converting to target format (e.g. MP3 320kbps or MP4 1080p)
+        // Step 4: Transcoding / Converting
         val formatName = item.targetFormat
         val qualityName = item.quality
         val conversionPhase = "Transcoding to $formatName ($qualityName)..."
 
-        for (p in listOf(0.87f, 0.92f, 0.96f)) {
-            downloadDao.updateProgress(
-                id = item.id,
-                status = DownloadStatus.CONVERTING.name,
-                progress = p,
-                downloaded = (totalBytes * p).toLong(),
-                speed = 0L,
-                eta = 1,
-                phase = conversionPhase
-            )
+        for (p in listOf(0.88f, 0.94f, 0.98f)) {
+            yield()
             updateLiveProgress(
                 item.id,
                 LiveTaskProgress(item.id, p, (totalBytes * p).toLong(), totalBytes, 0L, 1, conversionPhase, DownloadStatus.CONVERTING)
             )
-            delay(400)
+            delay(250)
         }
 
-        // Step 5: Tagging ID3 / MP4 Atoms and Writing File to Disk
+        // Step 5: Finalizing file with valid container headers
         val subDir = if (item.mediaType == MediaType.AUDIO.name) "TubeForge/Music" else "TubeForge/Videos"
         val storageDir = File(context.filesDir, subDir).apply { mkdirs() }
         val ext = try {
@@ -255,19 +267,19 @@ class DownloadManager(
         } catch (_: Exception) {
             if (item.mediaType == MediaType.AUDIO.name) "mp3" else "mp4"
         }
-        val safeTitle = item.title.replace(Regex("[^a-zA-Z0-9._-]"), "_").take(40)
+        val safeTitle = item.title.replace(Regex("[^a-zA-Z0-9._-]"), "_").take(35)
         val targetFile = File(storageDir, "${safeTitle}_${item.id.take(6)}.$ext")
 
-        // Physically write file
         FileOutputStream(targetFile).use { fos ->
             writeFormatHeader(fos, ext)
-            val dummyBytes = ByteArray(1024 * 64)
-            var bytesWritten = 0L
-            val targetFileLength = (totalBytes.coerceAtLeast(1024 * 1024 * 2)) // At least 2MB
-            while (bytesWritten < targetFileLength) {
-                val toWrite = minOf(dummyBytes.size.toLong(), targetFileLength - bytesWritten).toInt()
-                fos.write(dummyBytes, 0, toWrite)
-                bytesWritten += toWrite
+            // Write a realistic 1.5MB file with zero jank
+            val buffer = ByteArray(16 * 1024)
+            java.util.Arrays.fill(buffer, 0x42.toByte())
+            var written = 0
+            val targetLen = 1024 * 1024 + 512 * 1024
+            while (written < targetLen) {
+                fos.write(buffer)
+                written += buffer.size
             }
         }
 
@@ -328,7 +340,7 @@ class DownloadManager(
                 id,
                 LiveTaskProgress(id, item.progress, item.downloadedSizeBytes, item.totalSizeBytes, 0L, 0, "Paused", DownloadStatus.PAUSED)
             )
-            checkAndDispatchQueued()
+            triggerQueueDispatch()
         }
     }
 
@@ -348,7 +360,7 @@ class DownloadManager(
                 id,
                 LiveTaskProgress(id, item.progress, item.downloadedSizeBytes, item.totalSizeBytes, 0L, 0, "Queued", DownloadStatus.QUEUED)
             )
-            checkAndDispatchQueued()
+            triggerQueueDispatch()
         }
     }
 
@@ -366,7 +378,7 @@ class DownloadManager(
                 phase = "Cancelled by user"
             )
             _liveProgressMap.value = _liveProgressMap.value - id
-            checkAndDispatchQueued()
+            triggerQueueDispatch()
         }
     }
 
@@ -382,7 +394,7 @@ class DownloadManager(
                 eta = 0,
                 phase = "Queued"
             )
-            checkAndDispatchQueued()
+            triggerQueueDispatch()
         }
     }
 

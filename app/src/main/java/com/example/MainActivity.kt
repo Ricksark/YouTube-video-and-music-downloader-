@@ -1,10 +1,13 @@
 package com.example
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,7 +38,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.ui.components.MediaPreviewDialog
 import com.example.ui.components.TubeForgeTopBar
@@ -44,7 +46,6 @@ import com.example.ui.screens.ConverterScreen
 import com.example.ui.screens.DownloaderScreen
 import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.SettingsScreen
-import com.example.ui.theme.CrimsonPrimary
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.AppTab
 import com.example.ui.viewmodel.TubeForgeViewModel
@@ -57,7 +58,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
+            val themeMode by viewModel.themeMode.collectAsState()
+            MyApplicationTheme(themeMode = themeMode) {
                 TubeForgeApp(viewModel)
             }
         }
@@ -75,6 +77,27 @@ fun TubeForgeApp(viewModel: TubeForgeViewModel) {
     val previewPlaybackSec by viewModel.previewPlaybackSeconds.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Android 13+ (TIRAMISU) Notification Permission Requester
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        viewModel.updateNotificationPermission(isGranted)
+        if (isGranted) {
+            viewModel.showSnackbar("Download alerts enabled successfully!")
+        } else {
+            viewModel.showSnackbar("Alerts disabled. You can enable them anytime in Settings.")
+        }
+    }
+
+    val requestNotificationPermission = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            viewModel.updateNotificationPermission(true)
+            viewModel.showSnackbar("Download notifications ready")
+        }
+    }
 
     // Handle back button: return to DOWNLOADER tab if elsewhere
     BackHandler(enabled = currentTab != AppTab.DOWNLOADER) {
@@ -100,8 +123,10 @@ fun TubeForgeApp(viewModel: TubeForgeViewModel) {
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp,
-                modifier = Modifier.navigationBarsPadding().testTag("bottom_navigation_bar")
+                tonalElevation = 3.dp,
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .testTag("bottom_navigation_bar")
             ) {
                 // Downloader Tab
                 NavigationBarItem(
@@ -110,8 +135,8 @@ fun TubeForgeApp(viewModel: TubeForgeViewModel) {
                     icon = { Icon(Icons.Default.Download, contentDescription = "Downloader") },
                     label = { Text("Download") },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        indicatorColor = CrimsonPrimary
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                        indicatorColor = MaterialTheme.colorScheme.primary
                     ),
                     modifier = Modifier.testTag("nav_download")
                 )
@@ -124,7 +149,7 @@ fun TubeForgeApp(viewModel: TubeForgeViewModel) {
                         if (activeTasks.isNotEmpty()) {
                             BadgedBox(
                                 badge = {
-                                    Badge(containerColor = CrimsonPrimary) {
+                                    Badge(containerColor = MaterialTheme.colorScheme.primary) {
                                         Text("${activeTasks.size}")
                                     }
                                 }
@@ -137,8 +162,8 @@ fun TubeForgeApp(viewModel: TubeForgeViewModel) {
                     },
                     label = { Text("Queue") },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        indicatorColor = CrimsonPrimary
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                        indicatorColor = MaterialTheme.colorScheme.primary
                     ),
                     modifier = Modifier.testTag("nav_queue")
                 )
@@ -150,8 +175,8 @@ fun TubeForgeApp(viewModel: TubeForgeViewModel) {
                     icon = { Icon(Icons.Default.Folder, contentDescription = "Library") },
                     label = { Text("Library") },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        indicatorColor = CrimsonPrimary
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                        indicatorColor = MaterialTheme.colorScheme.primary
                     ),
                     modifier = Modifier.testTag("nav_library")
                 )
@@ -163,8 +188,8 @@ fun TubeForgeApp(viewModel: TubeForgeViewModel) {
                     icon = { Icon(Icons.Default.Transform, contentDescription = "Converter") },
                     label = { Text("Convert") },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        indicatorColor = CrimsonPrimary
+                        selectedIconColor = MaterialTheme.colorScheme.onTertiary,
+                        indicatorColor = MaterialTheme.colorScheme.tertiary
                     ),
                     modifier = Modifier.testTag("nav_converter")
                 )
@@ -176,8 +201,8 @@ fun TubeForgeApp(viewModel: TubeForgeViewModel) {
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
                     label = { Text("Settings") },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        indicatorColor = CrimsonPrimary
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                        indicatorColor = MaterialTheme.colorScheme.primary
                     ),
                     modifier = Modifier.testTag("nav_settings")
                 )
@@ -191,11 +216,17 @@ fun TubeForgeApp(viewModel: TubeForgeViewModel) {
                 .padding(innerPadding)
         ) {
             when (currentTab) {
-                AppTab.DOWNLOADER -> DownloaderScreen(viewModel)
-                AppTab.QUEUE -> ActiveQueueScreen(viewModel)
-                AppTab.LIBRARY -> LibraryScreen(viewModel)
-                AppTab.CONVERTER -> ConverterScreen(viewModel)
-                AppTab.SETTINGS -> SettingsScreen(viewModel)
+                AppTab.DOWNLOADER -> DownloaderScreen(
+                    viewModel = viewModel,
+                    onRequestPermission = requestNotificationPermission
+                )
+                AppTab.QUEUE -> ActiveQueueScreen(viewModel = viewModel)
+                AppTab.LIBRARY -> LibraryScreen(viewModel = viewModel)
+                AppTab.CONVERTER -> ConverterScreen(viewModel = viewModel)
+                AppTab.SETTINGS -> SettingsScreen(
+                    viewModel = viewModel,
+                    onRequestPermission = requestNotificationPermission
+                )
             }
 
             // Preview Player Modal
@@ -211,6 +242,9 @@ fun TubeForgeApp(viewModel: TubeForgeViewModel) {
                         val item = previewItem!!
                         viewModel.closePreview()
                         viewModel.prepareConversion(item)
+                    },
+                    onExportToDownloads = {
+                        viewModel.exportItemToPublicDownloads(previewItem!!)
                     }
                 )
             }

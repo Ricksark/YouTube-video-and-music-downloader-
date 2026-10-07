@@ -1,11 +1,6 @@
 package com.example.ui.components
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,26 +20,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Transform
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -53,7 +45,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,9 +61,6 @@ import coil.compose.AsyncImage
 import com.example.data.database.DownloadEntity
 import com.example.data.model.DownloadStatus
 import com.example.engine.LiveTaskProgress
-import com.example.ui.theme.CoralSecondary
-import com.example.ui.theme.CrimsonPrimary
-import com.example.ui.theme.CyanTertiary
 import com.example.ui.theme.SpeedAccent
 import com.example.ui.theme.StatusError
 import com.example.ui.theme.StatusSuccess
@@ -87,7 +75,7 @@ fun TubeForgeTopBar(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 3.dp,
+        tonalElevation = 2.dp,
         modifier = modifier.fillMaxWidth()
     ) {
         Row(
@@ -100,11 +88,14 @@ fun TubeForgeTopBar(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(38.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(
                             Brush.linearGradient(
-                                listOf(CrimsonPrimary, CoralSecondary)
+                                listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.secondary
+                                )
                             )
                         ),
                     contentAlignment = Alignment.Center
@@ -112,11 +103,11 @@ fun TubeForgeTopBar(
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = "Logo",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
                         text = "TubeForge",
@@ -165,15 +156,87 @@ fun TubeForgeTopBar(
                 if (activeCount > 0) {
                     Surface(
                         shape = CircleShape,
-                        color = CrimsonPrimary
+                        color = MaterialTheme.colorScheme.primary
                     ) {
                         Text(
                             text = "$activeCount",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DownloadPermissionBanner(
+    hasPermission: Boolean,
+    onRequestPermission: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (!hasPermission) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+            ),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+            ),
+            modifier = modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = "Notifications",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Enable Download Alerts",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = "Receive background progress updates when long batch downloads and video conversions finish.",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Button(
+                    onClick = onRequestPermission,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.minimumInteractiveComponentSize().testTag("grant_permission_btn")
+                ) {
+                    Text("Enable", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
                 }
             }
         }
@@ -209,25 +272,29 @@ fun ActiveTaskItem(
     val isVideo = item.mediaType == "VIDEO"
 
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
         ),
         modifier = modifier
             .fillMaxWidth()
             .testTag("task_card_${item.id.take(6)}")
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            // Header Row: Thumbnail + Title + Status Badge
+            // Header: Thumbnail + Title + Status
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(width = 64.dp, height = 48.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surface)
+                        .size(width = 68.dp, height = 48.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     if (item.thumbnailUrl.isNotBlank()) {
                         AsyncImage(
@@ -241,7 +308,7 @@ fun ActiveTaskItem(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(2.dp)
-                            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+                            .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
                             .padding(horizontal = 4.dp, vertical = 1.dp)
                     ) {
                         Text(
@@ -267,7 +334,7 @@ fun ActiveTaskItem(
                         Icon(
                             imageVector = if (isVideo) Icons.Default.Movie else Icons.Default.Audiotrack,
                             contentDescription = null,
-                            tint = if (isVideo) CrimsonPrimary else CyanTertiary,
+                            tint = if (isVideo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                             modifier = Modifier.size(13.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -286,7 +353,7 @@ fun ActiveTaskItem(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Progress Bar with Animated Pulse
+            // Progress Bar
             val percentInt = (progress * 100).toInt().coerceIn(0, 100)
             Column(modifier = Modifier.fillMaxWidth()) {
                 LinearProgressIndicator(
@@ -297,17 +364,17 @@ fun ActiveTaskItem(
                         .clip(RoundedCornerShape(4.dp)),
                     color = when (status) {
                         DownloadStatus.COMPLETED -> StatusSuccess
-                        DownloadStatus.CONVERTING -> CyanTertiary
+                        DownloadStatus.CONVERTING -> MaterialTheme.colorScheme.tertiary
                         DownloadStatus.FAILED -> StatusError
                         DownloadStatus.PAUSED -> StatusWarning
-                        else -> CrimsonPrimary
+                        else -> MaterialTheme.colorScheme.primary
                     },
-                    trackColor = MaterialTheme.colorScheme.surface
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Stats Row: Percentage, Transferred / Total, Speed, ETA
+                // Stats Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -347,7 +414,7 @@ fun ActiveTaskItem(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Phase indicator & Action Buttons
+            // Phase and Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -437,8 +504,8 @@ fun ActiveTaskItem(
 @Composable
 fun StatusChip(status: DownloadStatus) {
     val (bgColor, textColor) = when (status) {
-        DownloadStatus.DOWNLOADING -> CrimsonPrimary.copy(alpha = 0.15f) to CrimsonPrimary
-        DownloadStatus.CONVERTING -> CyanTertiary.copy(alpha = 0.15f) to CyanTertiary
+        DownloadStatus.DOWNLOADING -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) to MaterialTheme.colorScheme.primary
+        DownloadStatus.CONVERTING -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f) to MaterialTheme.colorScheme.tertiary
         DownloadStatus.COMPLETED -> StatusSuccess.copy(alpha = 0.15f) to StatusSuccess
         DownloadStatus.PAUSED -> StatusWarning.copy(alpha = 0.15f) to StatusWarning
         DownloadStatus.QUEUED -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
@@ -468,7 +535,8 @@ fun MediaPreviewDialog(
     onTogglePlayPause: () -> Unit,
     onSeek: (Float) -> Unit,
     onClose: () -> Unit,
-    onConvert: () -> Unit
+    onConvert: () -> Unit,
+    onExportToDownloads: () -> Unit
 ) {
     val totalSec = item.durationSeconds.coerceAtLeast(60)
     val fraction = (playbackSeconds.toFloat() / totalSec).coerceIn(0f, 1f)
@@ -478,6 +546,7 @@ fun MediaPreviewDialog(
         Card(
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp)
@@ -488,7 +557,7 @@ fun MediaPreviewDialog(
                     .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Top bar with close button
+                // Top bar
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -496,7 +565,8 @@ fun MediaPreviewDialog(
                 ) {
                     Text(
                         text = if (isVideo) "Video Player Preview" else "Audio Studio Player",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     IconButton(
                         onClick = onClose,
@@ -508,7 +578,7 @@ fun MediaPreviewDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Media Screen / Visualizer
+                // Media Screen / Waveform
                 if (isVideo) {
                     Box(
                         modifier = Modifier
@@ -533,19 +603,19 @@ fun MediaPreviewDialog(
                             onClick = onTogglePlayPause,
                             modifier = Modifier
                                 .size(64.dp)
-                                .background(CrimsonPrimary.copy(alpha = 0.85f), CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.85f), CircleShape)
                                 .minimumInteractiveComponentSize()
                         ) {
                             Icon(
                                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                 contentDescription = if (isPlaying) "Pause" else "Play",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(36.dp)
                             )
                         }
                     }
                 } else {
-                    // Audio waveform animation
+                    // Audio waveform visualization
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -553,7 +623,10 @@ fun MediaPreviewDialog(
                             .clip(RoundedCornerShape(16.dp))
                             .background(
                                 Brush.verticalGradient(
-                                    listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surface)
+                                    listOf(
+                                        MaterialTheme.colorScheme.surfaceVariant,
+                                        MaterialTheme.colorScheme.surface
+                                    )
                                 )
                             ),
                         contentAlignment = Alignment.Center
@@ -571,10 +644,10 @@ fun MediaPreviewDialog(
                                 Box(
                                     modifier = Modifier
                                         .width(6.dp)
-                                        .height((20.dp + (60.dp * heightMultiplier)))
+                                        .height((18.dp + (58.dp * heightMultiplier)))
                                         .clip(RoundedCornerShape(3.dp))
                                         .background(
-                                            if (b < bars / 2) CrimsonPrimary else CoralSecondary
+                                            if (b < bars / 2) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
                                         )
                                 )
                             }
@@ -589,7 +662,8 @@ fun MediaPreviewDialog(
                     text = item.title,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${item.author} • ${item.targetFormat} (${item.quality})",
@@ -605,8 +679,8 @@ fun MediaPreviewDialog(
                     onValueChange = onSeek,
                     modifier = Modifier.fillMaxWidth(),
                     colors = SliderDefaults.colors(
-                        thumbColor = CrimsonPrimary,
-                        activeTrackColor = CrimsonPrimary
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary
                     )
                 )
 
@@ -628,7 +702,7 @@ fun MediaPreviewDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Control Actions
+                // Action Controls
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -636,7 +710,7 @@ fun MediaPreviewDialog(
                 ) {
                     FilledTonalIconButton(
                         onClick = onConvert,
-                        modifier = Modifier.minimumInteractiveComponentSize()
+                        modifier = Modifier.minimumInteractiveComponentSize().testTag("preview_convert_btn")
                     ) {
                         Icon(imageVector = Icons.Default.Transform, contentDescription = "Convert Format")
                     }
@@ -645,20 +719,27 @@ fun MediaPreviewDialog(
                         onClick = onTogglePlayPause,
                         modifier = Modifier
                             .size(54.dp)
-                            .background(CrimsonPrimary, CircleShape)
-                            .minimumInteractiveComponentSize()
+                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                            .minimumInteractiveComponentSize().testTag("preview_play_pause_btn")
                     ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (isPlaying) "Pause" else "Play",
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(30.dp)
                         )
                     }
 
                     FilledTonalIconButton(
+                        onClick = onExportToDownloads,
+                        modifier = Modifier.minimumInteractiveComponentSize().testTag("preview_export_btn")
+                    ) {
+                        Icon(imageVector = Icons.Default.FileDownload, contentDescription = "Save to Downloads")
+                    }
+
+                    FilledTonalIconButton(
                         onClick = onClose,
-                        modifier = Modifier.minimumInteractiveComponentSize()
+                        modifier = Modifier.minimumInteractiveComponentSize().testTag("preview_close_btn")
                     ) {
                         Icon(imageVector = Icons.Default.Stop, contentDescription = "Stop")
                     }

@@ -13,8 +13,10 @@ import com.example.data.model.YouTubeVideoInfo
 import com.example.engine.DownloadManager
 import com.example.engine.FormatConverterEngine
 import com.example.engine.LiveTaskProgress
+import com.example.engine.StorageExportManager
 import com.example.engine.YouTubeMetadataService
 import com.example.engine.YouTubeUrlParser
+import com.example.ui.theme.ThemeMode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -152,6 +154,16 @@ class TubeForgeViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _convertedFileResult = MutableStateFlow<File?>(null)
     val convertedFileResult: StateFlow<File?> = _convertedFileResult.asStateFlow()
+
+    // Theme Mode Preference
+    private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    // Download & Notification Permissions
+    private val _hasNotificationPermission = MutableStateFlow(
+        StorageExportManager.hasNotificationPermission(application)
+    )
+    val hasNotificationPermission: StateFlow<Boolean> = _hasNotificationPermission.asStateFlow()
 
     // Settings State
     private val _maxConcurrency = MutableStateFlow(3)
@@ -490,5 +502,41 @@ class TubeForgeViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        _themeMode.value = mode
+    }
+
+    fun updateNotificationPermission(granted: Boolean) {
+        _hasNotificationPermission.value = granted
+    }
+
+    fun exportItemToPublicDownloads(item: DownloadEntity) {
+        val path = item.filePath
+        if (path == null) {
+            showSnackbar("File path not available")
+            return
+        }
+        val file = File(path)
+        if (!file.exists()) {
+            showSnackbar("Source file not found")
+            return
+        }
+
+        viewModelScope.launch {
+            val mimeType = if (item.mediaType == MediaType.VIDEO.name) "video/mp4" else "audio/mpeg"
+            val result = StorageExportManager.exportToPublicDownloads(
+                context = getApplication(),
+                sourceFile = file,
+                displayName = file.name,
+                mimeType = mimeType
+            )
+            result.onSuccess { msg ->
+                showSnackbar(msg)
+            }.onFailure { err ->
+                showSnackbar("Export failed: ${err.message}")
+            }
+        }
     }
 }
